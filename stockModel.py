@@ -26,8 +26,7 @@ def get_tickers():
                     tickers.append(line)
         except:
             continue
-    selectedTickers = list(set(tickers))
-    print(selectedTickers)
+    selectedTickers = set(tickers)
     return selectedTickers
 
 
@@ -71,30 +70,36 @@ def populate_data(t, table):
       })
   return pandas.DataFrame(tableRows)
 
+if __name__ == "__main__":
+    #Main Loop to build data
+    selectedTickers = get_tickers()
+    userinput = input("Enter tickers (comma-separated) or type 0 to not enter any: ")
+    if userinput != "0":
+        selectedTickers.update(set(userinput.split(",")))
+    selectedTickers = list(selectedTickers)
+    print("Selected tickers: ", selectedTickers)
+    data = []
+    for t in selectedTickers:
+        print("Putting Data for: ", t)
+        dataTable = yf.download(tickers=t, period="1d", interval="1m", progress=False)
+        hist = yf.Ticker(t).history(period="2d")
+        if(dataTable is None or len(dataTable) <50):
+            print("Error: No data available for the selected tickers.")
+            sys.exit(1)
+        dataTable.columns = [col[0] for col in dataTable.columns]
+        dataTable = dataTable.dropna()
+        if(populate_data(t, dataTable).empty or populate_data(t, dataTable) is None):
+            print("Could not populate data for", t)
+        else:
+         data.append(populate_data(t, dataTable))
+        fullDataset = pandas.concat(data, ignore_index=True)
 
-#Main Loop to build data
-selectedTickers = get_tickers()
-data = []
-for t in selectedTickers:
-  print("Putting Data for: ", t)
-  dataTable = yf.download(tickers=t, period="1d", interval="1m", progress=False)
-  if(dataTable is None or len(dataTable) <50):
-    print("Error: No data available for the selected tickers.")
-    sys.exit(1)
-  dataTable.columns = [col[0] for col in dataTable.columns]
-  dataTable = dataTable.dropna()
-  if(populate_data(t, dataTable).empty or populate_data(t, dataTable) is None):
-    print("Could not populate data for", t)
-  else:
-   data.append(populate_data(t, dataTable))
-  fullDataset = pandas.concat(data, ignore_index=True)
+    X = fullDataset[["return_1", "return_5", "daily_range", "body_pct", "volatility", "vol_ratio", "volume", "upper_wick", "lower_wick", "minutes_after_open"]]
 
-X = fullDataset[["return_1", "return_5", "daily_range", "body_pct", "volatility", "vol_ratio", "volume", "upper_wick", "lower_wick", "minutes_after_open"]]
+    y = fullDataset["target_return"]
 
-y = fullDataset["target_return"]
-
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
-model = RandomForestRegressor(n_estimators=200, max_depth=10)
-model.fit(X_train, y_train)
-print("Score: ", model.score(X_test, y_test))
-joblib.dump(model, "stock_model.pkl")
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+    model = RandomForestRegressor(n_estimators=200, max_depth=10)
+    model.fit(X_train, y_train)
+    print("Score: ", model.score(X_test, y_test))
+    joblib.dump(model, "stock_model.pkl")
