@@ -7,11 +7,9 @@ import pandas as pd
 from bs4 import BeautifulSoup
 from sklearn.ensemble import RandomForestRegressor
 import joblib
-def get_tickers():
-    usrinput = input("Type 1 if you want to train the model with the dataset or type 0 to use today's and previous data (ONLY AFTER 4:00 PM).")
-    dataTickers = pd.DataFrame()
-    otherTickers = []
-    if usrinput == "0":
+
+def get_finviz_tickers():
+        otherTickers = []
         url = "https://finviz.com/screener?v=111&s=ta_toplosers&f=ind_stocksonly%2Csh_avgvol_o1000%2Csh_price_o5%2Cta_change_d5"
         headers = {"User-Agent": "Mozilla/5.0"}
 
@@ -31,6 +29,14 @@ def get_tickers():
             except:
                 continue
         otherTickers = pd.DataFrame(otherTickers, columns=["Date", "Ticker"])
+        return otherTickers
+
+def get_tickers():
+    usrinput = input("Type 1 if you want to train the model with the dataset or type 0 to use today's and previous data (ONLY AFTER 4:00 PM).")
+    dataTickers = pd.DataFrame()
+    otherTickers = []
+    if usrinput == "0":
+        otherTickers = get_finviz_tickers()
     dataTickers = pd.read_csv("historicalDataTickers.txt", sep="\t")
     print("read csv")
     dataTickers = dataTickers.drop(["Change %", "Stock Exchange"], axis=1)
@@ -83,7 +89,7 @@ def populate_data(t, table):
           "lower_wick": current["lower_wick"],
           "return_1": current["return_1"],
           "return_5": current["return_5"],
-          "minutes_after_open": m+START_TIME,
+          "minutes_after_open": m,
           "target_return": potentialGain
       })
   return pd.DataFrame(tableRows)
@@ -99,7 +105,8 @@ if __name__ == "__main__":
         if(dataTable is None or len(dataTable) <50):
             print("Error: No data available for the selected ticker: ", t)
             continue
-        dataTable.columns = [col[0] for col in dataTable.columns]
+        if isinstance(dataTable.columns, pd.MultiIndex):
+            dataTable.columns = dataTable.columns.droplevel(1)
         dataTable = dataTable.dropna()
         if(populate_data(t, dataTable).empty or populate_data(t, dataTable) is None):
             print("Could not populate data for", t)
